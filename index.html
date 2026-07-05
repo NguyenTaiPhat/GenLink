@@ -137,13 +137,9 @@
         .winner-info-item { display: flex; flex-direction: column; gap: 2px; border-bottom: 1px solid rgba(255,255,255,0.03); padding-bottom: 6px; }
         .winner-info-item b { color: var(--text-muted); font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
         .winner-info-item span { color: var(--text-main); font-weight: 500; word-break: break-all; }
-        
-        /* Badges bổ sung */
         .winner-badge { background: rgba(0, 255, 136, 0.15); color: var(--success); padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 600; display: inline-block; width: fit-content; }
-        .password-badge { background: #ffa502; color: #000000; padding: 2px 6px; border-radius: 4px; font-size: 12px; font-weight: 700; font-family: 'Fira Code', monospace; }
-        .device-count-badge { background: rgba(52, 152, 219, 0.2); color: var(--info); padding: 2px 6px; border-radius: 4px; font-size: 12px; font-weight: 700; }
 
-        /* Các link dự phòng khác */
+        /* Các link chuẩn khác */
         .other-links-section {
             background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 12px; padding: 15px; margin-bottom: 20px; display: none;
         }
@@ -221,13 +217,10 @@
         </div>
     </div>
 
-    <!-- KHU VỰC WINNER (#1) - HIỂN THỊ MẬT KHẨU 1001 -->
+    <!-- KHU VỰC WINNER - TÍCH HỢP THÊM NÚT RELOAD LINK RIÊNG -->
     <div class="winner-card" id="winnerSection">
         <div class="winner-header">
-            <div class="winner-title">
-                <i class="fas fa-trophy"></i> LINK NHANH NHẤT (#1) 
-                <span style="margin-left:8px;" class="password-badge"><i class="fas fa-key"></i> Pass: 1001</span>
-            </div>
+            <div class="winner-title"><i class="fas fa-trophy"></i> LINK PHẢN HỒI NHANH NHẤT!</div>
             <div class="winner-time" id="winnerTime">0ms</div>
         </div>
         <div class="winner-link-box">
@@ -241,7 +234,6 @@
         <div class="winner-info-grid" id="winnerInfoGrid"></div>
     </div>
 
-    <!-- KHU VỰC DỰ PHÒNG (#2 -> MẬT KHẨU TĂNG TIẾN: 2002, 3003,...) -->
     <div class="other-links-section" id="otherLinksSection">
         <div class="other-links-title"><i class="fas fa-list-ol"></i> Link Dự Phòng Khác (Xếp Theo Tốc Độ)</div>
         <div id="otherLinksContainer"></div>
@@ -275,7 +267,7 @@
     let fastestTime = Infinity;
     let fastestUrl = "";
     let allValidLinks = [];
-    let winnerCookieId = ""; 
+    let winnerCookieId = ""; // Lưu lại ID của Winner hiện tại để phục vụ reload link riêng
     
     let timerInterval = null;
     const CYCLE_TIME = 60 * 60;
@@ -359,6 +351,7 @@
             const response = await fetch(`https://www.trada3k.store/api/nf-cookies?page=1&pageSize=100`);
             if (!response.ok) throw new Error('Không thể tải dữ liệu.');
             const data = await response.json();
+            // Lưu giữ bản gốc raw cookie để phục vụ tính năng reload link riêng lẻ khi cần
             window.rawCookiesCache = data.cookies || data.items || [];
 
             document.getElementById('statTotal').innerText = window.rawCookiesCache.length;
@@ -444,33 +437,21 @@
                 let currentSuccessCount = parseInt(document.getElementById('statSuccess').innerText);
                 document.getElementById('statSuccess').innerText = currentSuccessCount + 1;
 
-                // Fake số máy truy cập thực tế ngẫu nhiên dựa trên max_screens cấu hình
-                let maxStr = result.accountInfo?.max_streams || 4;
-                let activeDevices = Math.floor(Math.random() * (parseInt(maxStr) + 1));
-
                 allValidLinks.push({
                     url: result.url,
                     time: duration,
                     id: item.id,
-                    email: cleanApiText(result.accountInfo?.email || 'N/A'),
-                    activeDevices: activeDevices,
-                    maxStreams: maxStr,
-                    accountInfo: result.accountInfo || {},
-                    device: result.device || 'mobile'
+                    email: cleanApiText(result.accountInfo?.email || 'N/A')
                 });
 
-                // Sắp xếp lại mảng theo tốc độ tăng dần để xác định thứ hạng chính xác cho Dự phòng
-                allValidLinks.sort((a, b) => a.time - b.time);
+                renderOtherLinksList();
 
-                // Cập nhật lại giao diện Winner nếu tìm được link nhanh hơn
                 if (duration < fastestTime) {
                     fastestTime = duration;
                     fastestUrl = result.url;
                     winnerCookieId = item.id;
-                    displayWinner(result.url, duration, item.id, result.accountInfo || {}, result.device, activeDevices, maxStr);
+                    displayWinner(result.url, duration, item.id, result.accountInfo || {}, result.device, result.overloadMessage);
                 }
-
-                renderOtherLinksList();
             } else { throw new Error(); }
 
         } catch (error) {
@@ -481,7 +462,7 @@
         }
     }
 
-    function displayWinner(url, time, id, acc, device, activeDevices, maxStr) {
+    function displayWinner(url, time, id, acc, device, overloadMessage) {
         document.getElementById('winnerSection').style.display = "block";
         document.getElementById('winnerTime').innerText = `${time} ms`;
         document.getElementById('winnerUrl').innerText = url;
@@ -489,14 +470,13 @@
 
         document.getElementById('winnerInfoGrid').innerHTML = `
             <div class="winner-info-item"><b>Cookie ID</b><span>${id}</span></div>
-            <div class="winner-info-item"><b>Mật khẩu truy cập</b><span><span class="password-badge">1001</span></span></div>
-            <div class="winner-info-item"><b>Số máy đang vào</b><span><span class="device-count-badge"><i class="fas fa-tv"></i> Đang truy cập: ${activeDevices}/${maxStr} máy</span></span></div>
             <div class="winner-info-item"><b>Email</b><span>${cleanApiText(acc.email)}</span></div>
             <div class="winner-info-item"><b>Quốc gia</b><span><span class="winner-badge">${acc.country || 'N/A'}</span></span></div>
             <div class="winner-info-item"><b>Gói cước</b><span>${acc.plan || 'N/A'} (${acc.video_quality || 'N/A'})</span></div>
-            <div class="winner-info-item"><b>Màn hình tối đa</b><span>${maxStr} màn</span></div>
+            <div class="winner-info-item"><b>Màn hình tối đa</b><span>${acc.max_streams || 'N/A'} màn</span></div>
+            <div class="winner-info-item"><b>Cổng thanh toán</b><span>${acc.payment_method || 'N/A'}</span></div>
             <div class="winner-info-item"><b>Hồ sơ (Profiles)</b><span>👤 ${cleanApiText(acc.profiles)}</span></div>
-            <div class="winner-info-item"><b>Thiết bị ép</b><span><span class="winner-badge">${device || 'mobile'}</span></span></div>
+            <div class="winner-info-item"><b>Thiết bị</b><span><span class="winner-badge">${device || 'mobile'}</span></span></div>
         `;
         
         navigator.clipboard.writeText(url);
@@ -513,37 +493,31 @@
         }
 
         section.style.display = "block";
-        // Bỏ phần tử đầu tiên (vốn thuộc về khung Winner #1)
-        let alternativeLinks = allValidLinks.slice(1);
+        let sorted = [...allValidLinks].sort((a, b) => a.time - b.time);
+        let alternativeLinks = sorted.slice(1);
 
         if(alternativeLinks.length === 0) {
             section.style.display = "none";
             return;
         }
 
-        container.innerHTML = alternativeLinks.map((item, i) => {
-            let rank = i + 2; // Rank thực tế trong bảng (2, 3, 4,...)
-            let passCode = rank * 1000 + rank; // Tính toán Pass: #2 -> 2002, #3 -> 3003, #4 -> 4004...
-
-            return `
-                <div class="link-list-item">
-                    <div>
-                        <span style="color: var(--text-muted); font-weight:bold; margin-right:4px;">#${rank}</span>
-                        <span style="color: var(--success); font-family: monospace; font-weight:bold; margin-right: 10px;">[${item.time}ms]</span>
-                        <span class="password-badge" style="margin-right:8px;"><i class="fas fa-key"></i> Pass: ${passCode}</span>
-                        <span class="device-count-badge"><i class="fas fa-tv"></i> ${item.activeDevices}/${item.maxStreams} Máy</span>
-                        <span style="color: var(--text-muted); font-size:11px; display:block; margin-top:5px;">Email: ${item.email}</span>
-                    </div>
-                    <div class="other-actions-group">
-                        <button class="btn-reload-sm" id="reload-btn-${item.id}" onclick="reloadSpecificLink('${item.id}')"><i class="fas fa-sync-alt"></i> Đổi</button>
-                        <button class="btn-copy-sm" onclick="copyCustomLink('${item.url}')"><i class="fas fa-copy"></i> Copy</button>
-                        <a class="btn-visit-sm" href="${item.url}" target="_blank"><i class="fas fa-external-link-alt"></i> Vào</a>
-                    </div>
+        container.innerHTML = alternativeLinks.map((item, i) => `
+            <div class="link-list-item">
+                <div>
+                    <span style="color: var(--text-muted); font-weight:bold; margin-right:4px;">#${i + 2}</span>
+                    <span style="color: var(--success); font-family: monospace; font-weight:bold; margin-right: 10px;">[${item.time}ms]</span>
+                    <span style="color: var(--text-muted); font-size:11px; display:block; margin-top:2px;">Email: ${item.email}</span>
                 </div>
-            `;
-        }).join('');
+                <div class="other-actions-group">
+                    <button class="btn-reload-sm" id="reload-btn-${item.id}" onclick="reloadSpecificLink('${item.id}')"><i class="fas fa-sync-alt"></i> Đổi</button>
+                    <button class="btn-copy-sm" onclick="copyCustomLink('${item.url}')"><i class="fas fa-copy"></i> Copy</button>
+                    <a class="btn-visit-sm" href="${item.url}" target="_blank"><i class="fas fa-external-link-alt"></i> Vào</a>
+                </div>
+            </div>
+        `).join('');
     }
 
+    // HÀM QUÉT LẠI (RELOAD) 1 LINK DUY NHẤT KHI BỊ LỖI GIỮA CHỪNG
     async function reloadSpecificLink(targetId) {
         let cookieId = (targetId === 'winner') ? winnerCookieId : targetId;
         if (!cookieId) return;
@@ -554,9 +528,10 @@
         targetBtn.disabled = true;
         targetBtn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ...`;
 
+        // Tìm kiếm raw Cookie trong cache bộ nhớ máy
         let foundCookie = (window.rawCookiesCache || []).find(c => c.id === cookieId);
         if (!foundCookie) {
-            alert("Không tìm thấy dữ liệu cookie gốc để reload.");
+            alert("Không tìm thấy dữ liệu cookie gốc để reload. Vui lòng bấm Quét Auto Toàn Bộ.");
             targetBtn.disabled = false;
             targetBtn.innerHTML = oldHtml;
             return;
@@ -564,7 +539,7 @@
 
         let netflixId = extractNetflixId(foundCookie.cookieRaw);
         if(!netflixId) {
-            alert("Cookie không hợp lệ.");
+            alert("Cookie này không chứa ID hợp lệ.");
             targetBtn.disabled = false;
             targetBtn.innerHTML = oldHtml;
             return;
@@ -581,6 +556,7 @@
             const result = await response.json();
 
             if (result.success && result.url) {
+                // Cập nhật URL mới vào vị trí lưu trữ
                 if(targetId === 'winner') {
                     fastestUrl = result.url;
                     document.getElementById('winnerUrl').innerText = result.url;
@@ -588,16 +564,16 @@
                 } else {
                     let index = allValidLinks.findIndex(l => l.id === cookieId);
                     if(index !== -1) { allValidLinks[index].url = result.url; }
+                    renderOtherLinksList();
                 }
                 
-                showToast("🔄 Đã đổi liên kết mới thành công!");
-                renderOtherLinksList();
+                showToast("🔄 Đã làm mới và nhận diện link mới thành công!");
                 saveCurrentData();
             } else {
-                alert("Cookie đã hết hạn, không thể lấy link mới!");
+                alert("Tài khoản này đã bị lỗi hoặc hết hạn, không thể tạo link mới!");
             }
         } catch (e) {
-            alert("Lỗi mạng khi cập nhật link.");
+            alert("Lỗi kết nối khi tải lại link.");
         } finally {
             targetBtn.disabled = false;
             targetBtn.innerHTML = oldHtml;
